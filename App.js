@@ -6,8 +6,30 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Aviso chegando com o app aberto também aparece no topo do celular.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }),
+});
+
+// Pede permissão e pega o token de push do aparelho (Expo -> FCM). Sem projectId do EAS, segue sem push.
+async function tokenPush() {
+  if (!Device.isDevice) return null;
+  await Notifications.setNotificationChannelAsync('avisos', {
+    name: 'Avisos da academia', importance: Notifications.AndroidImportance.HIGH, vibrationPattern: [0, 250, 150, 250], lightColor: '#FFE600',
+  });
+  let { status } = await Notifications.getPermissionsAsync();
+  if (status !== 'granted') ({ status } = await Notifications.requestPermissionsAsync());
+  if (status !== 'granted') return null;
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
+  if (!projectId) return null;
+  return (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+}
 
 const SITE = (process.env.EXPO_PUBLIC_SITE_URL || 'https://superhiit.nexalyze.com.br').replace(/\/$/, '');
 const HOST = SITE.replace(/^https?:\/\//, '');
@@ -33,6 +55,33 @@ function Tela() {
   const [carregando, setCarregando] = useState(true);
   const [offline, setOffline] = useState(false);
   const escuro = useColorScheme() !== 'light';
+  const [token, setToken] = useState(null);
+  const [abrirUrl, setAbrirUrl] = useState(null);
+
+  useEffect(() => { tokenPush().then(setToken).catch(() => {}); }, []);
+
+  // Entrega o token ao site (que guarda na conta logada) sempre que ele carregar.
+  const entregarToken = useCallback(() => {
+    if (!token || !web.current) return;
+    web.current.injectJavaScript(`window.__pushApp=${JSON.stringify(token)};window.dispatchEvent(new Event('push-app'));true;`);
+  }, [token]);
+  useEffect(() => { entregarToken(); }, [entregarToken]);
+
+  // Toque na notificação abre a tela certa (Meu plano, aluno, carnê...).
+  useEffect(() => {
+    const abrir = (resp) => {
+      const url = resp?.notification?.request?.content?.data?.url;
+      if (url) setAbrirUrl(url.startsWith('http') ? url : `${SITE}${url}`);
+    };
+    Notifications.getLastNotificationResponseAsync().then(abrir).catch(() => {});
+    const sub = Notifications.addNotificationResponseReceivedListener(abrir);
+    return () => sub.remove();
+  }, []);
+  useEffect(() => {
+    if (!abrirUrl || !web.current) return;
+    web.current.injectJavaScript(`window.location.href=${JSON.stringify(abrirUrl)};true;`);
+    setAbrirUrl(null);
+  }, [abrirUrl]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -44,8 +93,9 @@ function Tela() {
 
   const pronto = useCallback(() => {
     setCarregando(false);
+    entregarToken();
     SplashScreen.hideAsync().catch(() => {});
-  }, []);
+  }, [entregarToken]);
 
   const fundo = escuro ? '#0b0b0b' : '#f6f6f3';
 
@@ -77,6 +127,7 @@ function Tela() {
         allowsBackForwardNavigationGestures
         pullToRefreshEnabled={false}
         bounces={false}
+        nestedScrollEnabled
         overScrollMode="never"
         textZoom={100}
         setBuiltInZoomControls={false}

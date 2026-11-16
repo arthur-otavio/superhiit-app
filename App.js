@@ -4,6 +4,8 @@ import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -12,6 +14,17 @@ const HOST = SITE.replace(/^https?:\/\//, '');
 const AMARELO = '#FFE600';
 
 // Links de fora (WhatsApp, Instagram, mapas, e-mail) abrem no app certo do celular, não dentro do WebView.
+// O site manda PDF do carnê e foto de stories em base64; o app grava e abre o compartilhar do Android.
+async function receberArquivo(evento) {
+  let msg;
+  try { msg = JSON.parse(evento.nativeEvent.data); } catch { return; }
+  if (msg?.tipo !== 'arquivo' || !msg.base64) return;
+  const nome = String(msg.nome || 'arquivo').replace(/[^\w.-]+/g, '-');
+  const uri = `${FileSystem.cacheDirectory}${nome}`;
+  await FileSystem.writeAsStringAsync(uri, msg.base64, { encoding: FileSystem.EncodingType.Base64 });
+  if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: msg.mime, dialogTitle: nome });
+}
+
 const ehInterno = (url) => url.startsWith(SITE) || url.includes('superhiit-academia.web.app') || url.startsWith('about:') || url.startsWith('blob:') || url.startsWith('data:');
 
 function Tela() {
@@ -85,6 +98,7 @@ function Tela() {
           Linking.openURL(req.url).catch(() => {});
           return false;
         }}
+        onMessage={(e) => { receberArquivo(e).catch(() => {}); }}
         onRenderProcessGone={() => web.current?.reload()}
         injectedJavaScriptBeforeContentLoaded={"document.documentElement.classList.add('modo-app'); true;"}
         onContentProcessDidTerminate={() => web.current?.reload()}

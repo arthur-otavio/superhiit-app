@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Component, useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Image, Linking, Platform, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -6,20 +6,29 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
-import Constants from 'expo-constants';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-// Aviso chegando com o app aberto também aparece no topo do celular.
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }),
-});
+// Notificações carregadas com proteção: se o módulo nativo faltar ou falhar, o app abre normalmente, só sem push.
+let Notifications = null;
+let Device = null;
+let Constants = null;
+try {
+  Notifications = require('expo-notifications');
+  Device = require('expo-device');
+  Constants = require('expo-constants').default;
+  // Aviso chegando com o app aberto também aparece no topo do celular.
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }),
+  });
+} catch (e) {
+  Notifications = null;
+  console.warn('Notificações desligadas:', e?.message);
+}
 
 // Pede permissão e pega o token de push do aparelho (Expo -> FCM). Sem projectId do EAS, segue sem push.
 async function tokenPush() {
-  if (!Device.isDevice) return null;
+  if (!Notifications || !Device?.isDevice) return null;
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('avisos', {
       name: 'Avisos da academia', importance: Notifications.AndroidImportance.HIGH, vibrationPattern: [0, 250, 150, 250], lightColor: '#FFE600',
@@ -28,7 +37,7 @@ async function tokenPush() {
   let { status } = await Notifications.getPermissionsAsync();
   if (status !== 'granted') ({ status } = await Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowBadge: true, allowSound: true } }));
   if (status !== 'granted') return null;
-  const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
+  const projectId = Constants?.expoConfig?.extra?.eas?.projectId || Constants?.easConfig?.projectId;
   if (!projectId) return null;
   return (await Notifications.getExpoPushTokenAsync({ projectId })).data;
 }
@@ -49,6 +58,12 @@ async function receberArquivo(evento) {
   if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: msg.mime, dialogTitle: nome });
 }
 
+// Opções que só existem no WebView do iPhone. No Android (arquitetura nova) uma opção no formato errado
+// derruba o app ao abrir: por isso só vão no iOS, e dataDetectorTypes vai como lista.
+const PROPS_IOS = Platform.OS === 'ios'
+  ? { contentInsetAdjustmentBehavior: 'never', automaticallyAdjustContentInsets: false, allowsLinkPreview: false, dataDetectorTypes: ['none'] }
+  : {};
+
 const ehInterno = (url) => url.startsWith(SITE) || url.includes('superhiit-academia.web.app') || url.startsWith('about:') || url.startsWith('blob:') || url.startsWith('data:');
 
 function Tela() {
@@ -61,6 +76,8 @@ function Tela() {
   const [abrirUrl, setAbrirUrl] = useState(null);
 
   useEffect(() => { tokenPush().then(setToken).catch(() => {}); }, []);
+  // Garantia: a tela de abertura nunca fica presa, mesmo se o site demorar.
+  useEffect(() => { const t = setTimeout(() => SplashScreen.hideAsync().catch(() => {}), 8000); return () => clearTimeout(t); }, []);
 
   // Entrega o token ao site (que guarda na conta logada) sempre que ele carregar.
   const entregarToken = useCallback(() => {
@@ -75,9 +92,13 @@ function Tela() {
       const url = resp?.notification?.request?.content?.data?.url;
       if (url) setAbrirUrl(url.startsWith('http') ? url : `${SITE}${url}`);
     };
-    Notifications.getLastNotificationResponseAsync().then(abrir).catch(() => {});
-    const sub = Notifications.addNotificationResponseReceivedListener(abrir);
-    return () => sub.remove();
+    if (!Notifications) return undefined;
+    let sub = null;
+    try {
+      Notifications.getLastNotificationResponseAsync().then(abrir).catch(() => {});
+      sub = Notifications.addNotificationResponseReceivedListener(abrir);
+    } catch { /* sem notificações */ }
+    return () => sub?.remove();
   }, []);
   useEffect(() => {
     if (!abrirUrl || !web.current) return;
@@ -123,10 +144,7 @@ function Tela() {
         source={{ uri: `${SITE}/painel` }}
         style={{ flex: 1, backgroundColor: fundo }}
         applicationNameForUserAgent={`SuperHIITApp/1.1 ${Platform.OS}`}
-        contentInsetAdjustmentBehavior="never"
-        automaticallyAdjustContentInsets={false}
-        allowsLinkPreview={false}
-        dataDetectorTypes="none"
+        {...PROPS_IOS}
         sharedCookiesEnabled
         domStorageEnabled
         javaScriptEnabled
@@ -170,10 +188,33 @@ function Tela() {
   );
 }
 
+// Qualquer erro na tela vira uma mensagem com "Tentar de novo", em vez de o app fechar sozinho.
+class ProtecaoErro extends Component {
+  constructor(props) { super(props); this.state = { erro: null }; }
+  static getDerivedStateFromError(erro) { return { erro }; }
+  componentDidCatch() { SplashScreen.hideAsync().catch(() => {}); }
+  render() {
+    if (!this.state.erro) return this.props.children;
+    return (
+      <View style={[estilos.offline, { backgroundColor: '#0b0b0b' }]}>
+        <Image source={require('./assets/icon.png')} style={estilos.icone} />
+        <Text style={[estilos.titulo, { color: '#fff' }]}>Algo deu errado</Text>
+        <Text style={[estilos.texto, { color: '#a3a3a3' }]}>Toque para abrir de novo. Se continuar, mande um print desta tela para a recepção.</Text>
+        <Text style={[estilos.texto, { color: '#666', fontSize: 12 }]} numberOfLines={4}>{String(this.state.erro?.message || this.state.erro)}</Text>
+        <Pressable style={estilos.botao} onPress={() => this.setState({ erro: null })}>
+          <Text style={estilos.botaoTexto}>Tentar de novo</Text>
+        </Pressable>
+      </View>
+    );
+  }
+}
+
 export default function App() {
   return (
     <SafeAreaProvider>
-      <Tela />
+      <ProtecaoErro>
+        <Tela />
+      </ProtecaoErro>
     </SafeAreaProvider>
   );
 }

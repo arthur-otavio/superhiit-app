@@ -57,6 +57,12 @@
           "defaultChannel": "avisos"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e700650e-114f-4d31-8b8f-1c251190ef0f"
+      }
+    },
+    "owner": "arthur_silva_1"
   }
 }

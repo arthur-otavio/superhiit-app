@@ -32,12 +32,13 @@ npx eas-cli login
 npm run apk            # eas build --platform android --profile preview
 ```
 
-Para publicar no site, baixe o APK do build e envie para a release `app-android` do `superhiit-frontend`:
+Para publicar no site, baixe o APK do build e crie uma release nova **neste** repositório, com o arquivo chamado exatamente `superhiit.apk`:
 
 ```bash
-gh release upload app-android superhiit.apk --clobber --repo arthur-otavio/superhiit-frontend
-gh workflow run deploy.yml --repo arthur-otavio/superhiit-frontend
+gh release create v1.2.0 superhiit.apk --repo arthur-otavio/superhiit-app --title "SuperHIIT 1.2.0" --notes "O que mudou"
 ```
+
+O site (`superhiit.nexalyze.com.br/baixar/superhiit.apk`) redireciona para `releases/latest/download/superhiit.apk`, então já passa a entregar a versão nova. Este repositório é **público** justamente para o download funcionar (o Firebase gratuito não hospeda .apk). Por isso não coloque segredos aqui.
 
 Em cada versão nova, aumente `version` e `android.versionCode` em `app.json`. A chave de assinatura (keystore) fica guardada no EAS: não apague, senão o APK novo não instala por cima do antigo.
 

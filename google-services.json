@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "188887993507",
+    "project_id": "superhiit-academia",
+    "storage_bucket": "superhiit-academia.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:188887993507:android:a8134e32cbcff8ec350316",
+        "android_client_info": {
+          "package_name": "br.com.nexalyze.superhiit"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJQUKeEu_3lCtpMQK7FRPQ_FyP8CEKGfs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Image, Linking, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, BackHandler, Image, Linking, Platform, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -20,11 +20,13 @@ Notifications.setNotificationHandler({
 // Pede permissão e pega o token de push do aparelho (Expo -> FCM). Sem projectId do EAS, segue sem push.
 async function tokenPush() {
   if (!Device.isDevice) return null;
-  await Notifications.setNotificationChannelAsync('avisos', {
-    name: 'Avisos da academia', importance: Notifications.AndroidImportance.HIGH, vibrationPattern: [0, 250, 150, 250], lightColor: '#FFE600',
-  });
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('avisos', {
+      name: 'Avisos da academia', importance: Notifications.AndroidImportance.HIGH, vibrationPattern: [0, 250, 150, 250], lightColor: '#FFE600',
+    });
+  }
   let { status } = await Notifications.getPermissionsAsync();
-  if (status !== 'granted') ({ status } = await Notifications.requestPermissionsAsync());
+  if (status !== 'granted') ({ status } = await Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowBadge: true, allowSound: true } }));
   if (status !== 'granted') return null;
   const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
   if (!projectId) return null;
@@ -120,7 +122,11 @@ function Tela() {
         ref={web}
         source={{ uri: `${SITE}/painel` }}
         style={{ flex: 1, backgroundColor: fundo }}
-        applicationNameForUserAgent="SuperHIITApp/1.0"
+        applicationNameForUserAgent={`SuperHIITApp/1.1 ${Platform.OS}`}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+        allowsLinkPreview={false}
+        dataDetectorTypes="none"
         sharedCookiesEnabled
         domStorageEnabled
         javaScriptEnabled

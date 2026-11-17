@@ -10,7 +10,20 @@
     "backgroundColor": "#0b0b0b",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "br.com.nexalyze.superhiit"
+      "bundleIdentifier": "br.com.nexalyze.superhiit",
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSCameraUsageDescription": "A câmera é usada para tirar a foto do treino para os stories.",
+        "NSPhotoLibraryUsageDescription": "As fotos são usadas para escolher a imagem do treino para os stories.",
+        "NSPhotoLibraryAddUsageDescription": "Para salvar a foto do treino e o PDF da ficha no seu iPhone.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      }
     },
     "android": {
       "package": "br.com.nexalyze.superhiit",

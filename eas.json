@@ -6,12 +6,31 @@
   "build": {
     "preview": {
       "distribution": "internal",
-      "android": { "buildType": "apk" },
-      "env": { "EXPO_PUBLIC_SITE_URL": "https://superhiit.nexalyze.com.br" }
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SITE_URL": "https://superhiit.nexalyze.com.br"
+      },
+      "ios": {
+        "simulator": false
+      }
     },
     "production": {
-      "android": { "buildType": "app-bundle" },
-      "env": { "EXPO_PUBLIC_SITE_URL": "https://superhiit.nexalyze.com.br" }
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_SITE_URL": "https://superhiit.nexalyze.com.br"
+      },
+      "ios": {}
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "PREENCHER_DEPOIS_DE_CRIAR_O_APP_NO_APP_STORE_CONNECT"
+      }
     }
   }
 }
